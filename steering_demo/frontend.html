@@ -1,0 +1,674 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Streaming + Steering Demo</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 900px;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            height: 90vh;
+            max-height: 800px;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px 30px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .header h1 {
+            font-size: 24px;
+            font-weight: 600;
+        }
+
+        .session-info {
+            font-size: 12px;
+            opacity: 0.9;
+        }
+
+        .chat-container {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px 30px;
+            background: #f8f9fa;
+        }
+
+        .message {
+            margin-bottom: 20px;
+            animation: fadeIn 0.3s ease-in;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .message-header {
+            font-size: 12px;
+            font-weight: 600;
+            margin-bottom: 8px;
+            color: #666;
+        }
+
+        .message-content {
+            padding: 15px 20px;
+            border-radius: 12px;
+            line-height: 1.6;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+
+        .user-message .message-content {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            margin-left: 20%;
+        }
+
+        .ai-message .message-content {
+            background: white;
+            border: 1px solid #e0e0e0;
+            margin-right: 20%;
+        }
+
+        .status-message {
+            text-align: center;
+            color: #999;
+            font-size: 14px;
+            font-style: italic;
+            padding: 10px;
+        }
+
+        .typing-indicator {
+            display: inline-block;
+            padding: 10px 20px;
+            background: white;
+            border: 1px solid #e0e0e0;
+            border-radius: 12px;
+        }
+
+        .typing-indicator span {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            background: #667eea;
+            border-radius: 50%;
+            margin: 0 2px;
+            animation: typing 1.4s infinite;
+        }
+
+        .typing-indicator span:nth-child(2) {
+            animation-delay: 0.2s;
+        }
+
+        .typing-indicator span:nth-child(3) {
+            animation-delay: 0.4s;
+        }
+
+        @keyframes typing {
+            0%, 60%, 100% {
+                transform: translateY(0);
+            }
+            30% {
+                transform: translateY(-10px);
+            }
+        }
+
+        .input-container {
+            padding: 20px 30px;
+            background: white;
+            border-top: 1px solid #e0e0e0;
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+
+        .input-wrapper {
+            flex: 1;
+            position: relative;
+        }
+
+        #userInput {
+            width: 100%;
+            padding: 15px 20px;
+            border: 2px solid #e0e0e0;
+            border-radius: 12px;
+            font-size: 15px;
+            outline: none;
+            transition: border-color 0.3s;
+            font-family: inherit;
+        }
+
+        #userInput:focus {
+            border-color: #667eea;
+        }
+
+        button {
+            padding: 15px 30px;
+            border: none;
+            border-radius: 12px;
+            font-size: 15px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            white-space: nowrap;
+        }
+
+        #sendBtn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        #sendBtn:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        #sendBtn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        #stopBtn {
+            background: #ff4757;
+            color: white;
+            display: none;
+        }
+
+        #stopBtn:hover {
+            background: #ff3838;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(255, 71, 87, 0.4);
+        }
+
+        #clearBtn {
+            background: #f1f2f6;
+            color: #666;
+        }
+
+        #clearBtn:hover {
+            background: #dfe4ea;
+        }
+
+        .controls {
+            display: flex;
+            gap: 10px;
+        }
+
+        .cursor {
+            display: inline-block;
+            width: 2px;
+            height: 1em;
+            background: #667eea;
+            margin-left: 2px;
+            animation: blink 1s infinite;
+        }
+
+        @keyframes blink {
+            0%, 50% { opacity: 1; }
+            51%, 100% { opacity: 0; }
+        }
+
+        /* 滚动条样式 */
+        .chat-container::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        .chat-container::-webkit-scrollbar-track {
+            background: #f1f1f1;
+        }
+
+        .chat-container::-webkit-scrollbar-thumb {
+            background: #888;
+            border-radius: 4px;
+        }
+
+        .chat-container::-webkit-scrollbar-thumb:hover {
+            background: #555;
+        }
+
+        /* 响应式设计 */
+        @media (max-width: 768px) {
+            .container {
+                height: 100vh;
+                max-height: none;
+                border-radius: 0;
+            }
+
+            .user-message .message-content {
+                margin-left: 10%;
+            }
+
+            .ai-message .message-content {
+                margin-right: 10%;
+            }
+
+            .controls {
+                flex-wrap: wrap;
+            }
+
+            button {
+                padding: 12px 20px;
+                font-size: 14px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- 头部 -->
+        <div class="header">
+            <h1>🎮 Streaming + Steering Demo</h1>
+            <div class="session-info" id="sessionInfo">
+                会话: 等待中...
+            </div>
+        </div>
+
+        <!-- 聊天区域 -->
+        <div class="chat-container" id="chatContainer">
+            <div class="status-message">
+                👋 欢迎！你可以在任何时候中断 AI 的回复并发送新消息
+            </div>
+        </div>
+
+        <!-- 输入区域 -->
+        <div class="input-container">
+            <div class="input-wrapper">
+                <input
+                    type="text"
+                    id="userInput"
+                    placeholder="输入消息... (按 Enter 发送)"
+                    autocomplete="off"
+                >
+            </div>
+            <div class="controls">
+                <button id="sendBtn" onclick="sendMessage()">发送</button>
+                <button id="stopBtn" onclick="stopStreaming()">🛑 停止</button>
+                <button id="clearBtn" onclick="clearChat()">清空</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 全局变量
+        let currentSessionId = null;
+        let eventSource = null;
+        let isStreaming = false;
+        let currentAIMessageElement = null;
+
+        const API_BASE = 'http://localhost:8000';
+
+        // DOM 元素
+        const chatContainer = document.getElementById('chatContainer');
+        const userInput = document.getElementById('userInput');
+        const sendBtn = document.getElementById('sendBtn');
+        const stopBtn = document.getElementById('stopBtn');
+        const sessionInfo = document.getElementById('sessionInfo');
+
+        // 初始化
+        userInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                sendMessage();
+            }
+        });
+
+        // 添加用户消息到界面
+        function addUserMessage(message) {
+            const messageDiv = document.createElement('div');
+            messageDiv.className = 'message user-message';
+            messageDiv.innerHTML = `
+                <div class="message-header">你</div>
+                <div class="message-content">${escapeHtml(message)}</div>
+            `;
+            chatContainer.appendChild(messageDiv);
+            scrollToBottom();
+        }
+
+        // 添加 AI 消息到界面（初始为空，后续流式填充）
+        function addAIMessage() {
+            const messageDiv = document.createElement('div');
+            messageDiv.className = 'message ai-message';
+            messageDiv.innerHTML = `
+                <div class="message-header">AI</div>
+                <div class="message-content"></div>
+            `;
+            chatContainer.appendChild(messageDiv);
+            currentAIMessageElement = messageDiv.querySelector('.message-content');
+            scrollToBottom();
+            return currentAIMessageElement;
+        }
+
+        // 显示"正在输入"指示器
+        function showTypingIndicator() {
+            const indicator = document.createElement('div');
+            indicator.className = 'message ai-message';
+            indicator.id = 'typingIndicator';
+            indicator.innerHTML = `
+                <div class="message-header">AI</div>
+                <div class="typing-indicator">
+                    <span></span>
+                    <span></span>
+                    <span></span>
+                </div>
+            `;
+            chatContainer.appendChild(indicator);
+            scrollToBottom();
+        }
+
+        // 移除"正在输入"指示器
+        function removeTypingIndicator() {
+            const indicator = document.getElementById('typingIndicator');
+            if (indicator) {
+                indicator.remove();
+            }
+        }
+
+        // 发送消息
+        async function sendMessage() {
+            const message = userInput.value.trim();
+            if (!message) return;
+
+            // 如果正在流式输出，先停止
+            if (isStreaming) {
+                await stopStreaming();
+                await new Promise(resolve => setTimeout(resolve, 500)); // 等待停止完成
+            }
+
+            // 禁用输入
+            userInput.disabled = true;
+            sendBtn.disabled = true;
+
+            // 添加用户消息到界面
+            addUserMessage(message);
+            userInput.value = '';
+
+            // 显示"正在输入"
+            showTypingIndicator();
+
+            // 开始流式请求
+            try {
+                await startStreaming(message);
+            } catch (error) {
+                console.error('发送消息错误:', error);
+                removeTypingIndicator();
+                addStatusMessage('❌ 发送失败: ' + error.message);
+            }
+
+            // 重新启用输入
+            userInput.disabled = false;
+            sendBtn.disabled = false;
+            userInput.focus();
+        }
+
+        // 开始流式输出
+        async function startStreaming(message) {
+            return new Promise((resolve, reject) => {
+                // 如果还没有 session_id，生成一个临时的
+                if (!currentSessionId) {
+                    currentSessionId = 'temp-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9);
+                    updateSessionInfo(currentSessionId);
+                    console.log('[DEBUG] 生成临时 session_id:', currentSessionId);
+                }
+
+                // 构建请求体
+                const requestBody = {
+                    message: message,
+                    session_id: currentSessionId
+                };
+
+                console.log('[DEBUG] 开始流式请求:', requestBody);
+
+                // 创建 EventSource（SSE）
+                const url = `${API_BASE}/api/chat`;
+
+                // 使用 fetch 发送 POST 请求，然后手动解析 SSE
+                fetch(url, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(requestBody)
+                })
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('网络请求失败');
+                    }
+
+                    const reader = response.body.getReader();
+                    const decoder = new TextDecoder();
+                    let buffer = '';
+
+                    isStreaming = true;
+                    stopBtn.style.display = 'block';
+                    sendBtn.style.display = 'none';
+
+                    console.log('[DEBUG] 流式输出已开始，停止按钮应该显示');
+
+                    // 移除"正在输入"，添加 AI 消息容器
+                    removeTypingIndicator();
+                    const aiMessageElement = addAIMessage();
+
+                    // 读取流
+                    function processText({ done, value }) {
+                        if (done) {
+                            isStreaming = false;
+                            stopBtn.style.display = 'none';
+                            sendBtn.style.display = 'block';
+                            resolve();
+                            return;
+                        }
+
+                        buffer += decoder.decode(value, { stream: true });
+                        const lines = buffer.split('\n');
+                        buffer = lines.pop(); // 保留最后不完整的行
+
+                        for (const line of lines) {
+                            if (line.startsWith('event:')) {
+                                const event = line.substring(6).trim();
+                                continue;
+                            }
+                            if (line.startsWith('data:')) {
+                                const data = line.substring(5).trim();
+                                handleSSEData(data, aiMessageElement);
+                            }
+                        }
+
+                        return reader.read().then(processText);
+                    }
+
+                    return reader.read().then(processText);
+                })
+                .catch(error => {
+                    isStreaming = false;
+                    stopBtn.style.display = 'none';
+                    sendBtn.style.display = 'block';
+                    removeTypingIndicator();
+                    reject(error);
+                });
+            });
+        }
+
+        // 处理 SSE 数据
+        function handleSSEData(data, messageElement) {
+            // 尝试解析事件类型（从前面的 event: 行）
+            // 但由于我们按行处理，这里直接根据数据内容判断
+
+            if (data.startsWith('{') || data.includes('"session_id"')) {
+                // session_id 事件（JSON 格式）
+                try {
+                    const sessionId = data.replace(/[{}"]/g, '').split(':')[1];
+                    // 只有当收到的是正式 session_id 时才更新（不是 temp- 开头）
+                    if (!sessionId.startsWith('temp-')) {
+                        currentSessionId = sessionId;
+                        updateSessionInfo(sessionId);
+                        console.log('[DEBUG] 收到服务器 session_id:', sessionId);
+                    } else {
+                        console.log('[DEBUG] 保持临时 session_id:', currentSessionId);
+                    }
+                } catch (e) {
+                    console.log('[DEBUG] session_id 解析失败:', e);
+                }
+            } else if (data === '开始处理...') {
+                // start 事件
+                console.log('[DEBUG] 开始处理');
+            } else if (data === '执行已中断') {
+                // aborted 事件
+                messageElement.innerHTML += '\n\n<em style="color: #ff4757;">🛑 已中断</em>';
+                isStreaming = false;
+                stopBtn.style.display = 'none';
+                sendBtn.style.display = 'block';
+            } else if (data === '完成') {
+                // done 事件
+                isStreaming = false;
+                stopBtn.style.display = 'none';
+                sendBtn.style.display = 'block';
+            } else if (data.startsWith('Error') || data.startsWith('错误')) {
+                // error 事件
+                messageElement.innerHTML += `\n\n<em style="color: #ff4757;">❌ ${escapeHtml(data)}</em>`;
+                isStreaming = false;
+                stopBtn.style.display = 'none';
+                sendBtn.style.display = 'block';
+            } else {
+                // token 事件 - 流式添加内容
+                if (messageElement) {
+                    messageElement.textContent += data;
+                    scrollToBottom();
+                }
+            }
+        }
+
+        // 停止流式输出
+        async function stopStreaming() {
+            console.log('[DEBUG] stopStreaming 被调用');
+            console.log('[DEBUG] isStreaming:', isStreaming);
+            console.log('[DEBUG] currentSessionId:', currentSessionId);
+
+            // 修改条件：只检查 isStreaming
+            if (!isStreaming) {
+                console.log('[DEBUG] 没有正在进行的流式输出，忽略');
+                return;
+            }
+
+            // 如果还没有收到 session_id，使用临时标识
+            const sessionIdToAbort = currentSessionId || 'pending';
+            console.log('[DEBUG] 尝试中断会话:', sessionIdToAbort);
+
+            try {
+                const response = await fetch(`${API_BASE}/api/abort`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        session_id: sessionIdToAbort
+                    })
+                });
+
+                const result = await response.json();
+                console.log('[DEBUG] 中断结果:', result);
+
+                // 添加中断标记
+                if (currentAIMessageElement) {
+                    currentAIMessageElement.innerHTML += '\n\n<em style="color: #ff4757;">🛑 用户中断</em>';
+                }
+
+            } catch (error) {
+                console.error('[ERROR] 中断失败:', error);
+                // 即使中断失败，也应该更新 UI 状态
+                if (currentAIMessageElement) {
+                    currentAIMessageElement.innerHTML += '\n\n<em style="color: #ff9900;">⚠️ 尝试中断</em>';
+                }
+            }
+
+            // 强制更新状态
+            isStreaming = false;
+            stopBtn.style.display = 'none';
+            sendBtn.style.display = 'block';
+            console.log('[DEBUG] UI 状态已更新');
+        }
+
+        // 清空聊天
+        function clearChat() {
+            if (confirm('确定要清空聊天记录吗？')) {
+                chatContainer.innerHTML = `
+                    <div class="status-message">
+                        👋 聊天已清空，你可以开始新的对话
+                    </div>
+                `;
+                currentSessionId = null;
+                updateSessionInfo('等待中...');
+            }
+        }
+
+        // 更新会话信息
+        function updateSessionInfo(sessionId) {
+            if (sessionId && sessionId !== '等待中...') {
+                sessionInfo.textContent = `会话: ${sessionId.substring(0, 8)}...`;
+            } else {
+                sessionInfo.textContent = `会话: ${sessionId}`;
+            }
+        }
+
+        // 添加状态消息
+        function addStatusMessage(message) {
+            const statusDiv = document.createElement('div');
+            statusDiv.className = 'status-message';
+            statusDiv.textContent = message;
+            chatContainer.appendChild(statusDiv);
+            scrollToBottom();
+        }
+
+        // 滚动到底部
+        function scrollToBottom() {
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+        }
+
+        // HTML 转义
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        // 页面加载完成
+        window.addEventListener('load', () => {
+            userInput.focus();
+            console.log('✅ Streaming + Steering Demo 前端已加载');
+            console.log('后端 API:', API_BASE);
+        });
+    </script>
+</body>
+</html>
